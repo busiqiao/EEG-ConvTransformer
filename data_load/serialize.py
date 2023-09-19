@@ -54,7 +54,7 @@ def go_through(filenames, pkl_path):
 
 
 def file_scanf(path, endswith, sub_ratio=1):
-    files = glob.glob(path + '/S1_1*')
+    files = glob.glob(path + '/*')
     if platform.system().lower() == 'windows':
         files = [f.replace('\\', '/') for f in files]
     disallowed_file_endings = (".gitignore", ".DS_Store")
