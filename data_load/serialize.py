@@ -54,7 +54,7 @@ def go_through(filenames, pkl_path):
 
 
 def file_scanf(path, endswith, sub_ratio=1):
-    files = glob.glob(path + '/*')
+    files = glob.glob(path + '/S1_1*')
     if platform.system().lower() == 'windows':
         files = [f.replace('\\', '/') for f in files]
     disallowed_file_endings = (".gitignore", ".DS_Store")
@@ -63,9 +63,9 @@ def file_scanf(path, endswith, sub_ratio=1):
 
 
 if __name__ == "__main__":
-    path = 'G:/Datasets/Stanford_digital_repository'
+    path = 'H:/EEG/EEGDATA'
     filenames = file_scanf(path, endswith='.mat')
-    locs = read_locs_xlsx('D:/GitHub/EEG-ConvTransformer/data_load/electrodes_locations/GSN-HydroCel-128.xlsx')
+    locs = read_locs_xlsx('H:/EEG/EEG-ConvTransformer/data_load/electrodes_locations/GSN_HydroCel_128.xlsx')
     # locs = read_locs_mat('E:/Datasets/Stanford_digital_repository/electrodes_locations/Neuroscan_locs_orig.mat')
 
     go_through(filenames, pkl_path=path+'/img_pkl_124/')

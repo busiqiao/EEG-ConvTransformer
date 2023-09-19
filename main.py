@@ -15,6 +15,10 @@ from model.conv_transformer import ConvTransformer
 from sklearn.model_selection import KFold
 from torch.utils.tensorboard import SummaryWriter
 from utils import train, test, learning_rate_scheduler
+import pynvml
+
+pynvml.nvmlInit()
+handle = pynvml.nvmlDeviceGetHandleByIndex(0)  # 0表示显卡标号
 
 torch.manual_seed(1234)
 np.random.seed(1234)
@@ -24,13 +28,18 @@ learning_rate = 0.0001
 decay = 0.170
 epochs = 40
 k = 10
-exp_id = '2022-12-6'
+exp_id = '2020-09-19-2'
+history = np.zeros((k, 1))
 
-dataset = EEGImagesDataset(path='E:/Datasets/Stanford_digital_repository/img_pkl')
+dataset = EEGImagesDataset(path='H:/EEG/EEGDATA/img_pkl_124')
 k_fold = KFold(n_splits=k, shuffle=True)
 # loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=6, shuffle=True)
 
 if __name__ == '__main__':
+    if torch.cuda.is_available():
+        print('显卡数量：', torch.cuda.device_count(), '  ', torch.cuda.get_device_name(0), '  显卡号：',
+              torch.cuda.current_device())
+    meminfo = pynvml.nvmlDeviceGetMemoryInfo(handle)
     global_step = 0
     for fold, (train_ids, valid_ids) in enumerate(k_fold.split(dataset)):
         train_sampler = SubsetRandomSampler(train_ids)
@@ -51,7 +60,7 @@ if __name__ == '__main__':
             for step, (x, y) in enumerate(train_loader):
                 x = x.cuda()
                 y = y.cuda()
-                lr = learning_rate_scheduler(epoch=epoch, lr=learning_rate, decay=0.5)
+                lr = learning_rate_scheduler(epoch=epoch, lr=learning_rate, decay=0.6)
                 loss, y_ = train(model=model, optimizer=optimizer, x=x, y=y, lr=lr)
                 global_step += 1
                 if step % 50 == 0:
@@ -59,13 +68,23 @@ if __name__ == '__main__':
                     acc = corrects.cpu().int().sum().numpy() / batch_size
                     summary.add_scalar(tag='TrainLoss', scalar_value=loss, global_step=global_step)
                     summary.add_scalar(tag='TrainAcc', scalar_value=acc, global_step=global_step)
-                    print('epoch:{}/{} step:{}/{} global_step:{} lr:{:.5f} loss={:.5f} acc={:.3f}'.format(
+                    print('epoch:{}/{} step:{}/{} global_step:{} lr:{:.8f} loss={:.5f} acc={:.3f}'.format(
                         epoch, epochs, step, int(n_t / batch_size), global_step, lr, loss, acc))
+                    # print(meminfo.used/1024/1024**2, 'G')  #已用显存大小
         print('Training done')
+        sum_acc = 0
         for step, (x, y) in enumerate(valid_loader):
+            if batch_size == 64 and step == 81:  # 跳过第81个step的原因是kfold分配的验证集在batich_size=64时，
+                continue  # 第81个step无法填满，导致除以精度异常甚至报错
             loss, acc = test(model=model, x=x, y=y)
             acc = acc / batch_size
+            sum_acc += acc
             summary.add_scalar(tag='ValLoss', scalar_value=loss, global_step=global_step)
             summary.add_scalar(tag='ValAcc', scalar_value=acc, global_step=global_step)
             print('test step:{}/{} loss={:.5f} acc={:.3f}'.format(step, int(n_v / batch_size), loss, acc))
+        # print('测试精度：{:.3f}'.format(sum_acc / n_v))
+        history[fold] = sum_acc / n_v
         print('Testing done')
+    av_acc = np.sum(history) / k
+    print(history)
+    print('平均准确率：{:.5f}'.format(av_acc))
