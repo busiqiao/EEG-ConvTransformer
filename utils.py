@@ -31,7 +31,7 @@ def test(model, x, y):
     return loss, acc
 
 
-def learning_rate_scheduler(epoch, lr, decay):
+def learning_rate_scheduler(epoch, lr, gamma):
     if epoch >= 14:
-        lr = (decay ** ((epoch - 14) // 5 + 1)) * lr
+        lr = (gamma ** ((epoch - 14) // 5 + 1)) * lr
     return lr
