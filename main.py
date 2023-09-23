@@ -20,21 +20,41 @@ import pynvml
 pynvml.nvmlInit()
 handle = pynvml.nvmlDeviceGetHandleByIndex(0)  # 0表示显卡标号
 
-torch.manual_seed(1234)
-np.random.seed(1234)
+torch.manual_seed(0)
+np.random.seed(0)
 
 batch_size = 64
 learning_rate = 0.0001
-decay = 0.170
-gamma = 0.6
-epochs = 40
+decay = 0.135
+gamma = 0.5
+epochs = 35
 k = 10
 exp_id = 'debug'
-history = np.zeros((k, epochs))
+history = np.zeros(k)
 
 dataset = EEGImagesDataset(path='H:/EEG/EEGDATA/img_pkl_124')
 k_fold = KFold(n_splits=k, shuffle=True)
 # loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=6, shuffle=True)
+
+
+def acc_test(test_model, valid, g_step):
+    sum_acc = 0
+    for s, (xx, yy) in enumerate(valid):
+        if batch_size == 64 and s == 81:  # 跳过第81个step的原因是kfold分配的验证集在batich_size=64时，
+            continue  # 第81个step无法填满，导致除以精度异常甚至报错
+        val_loss, val_acc = test(model=test_model, x=xx, y=yy)
+        val_acc = val_acc / batch_size
+        sum_acc += val_acc
+        if g_step == 0:
+            summary.add_scalar(tag='ValLoss', scalar_value=val_loss, global_step=g_step)
+            summary.add_scalar(tag='ValAcc', scalar_value=val_acc, global_step=g_step)
+        else:
+            summary.add_scalar(tag='Epoch_ValLoss', scalar_value=val_loss, global_step=g_step)
+            summary.add_scalar(tag='Epoch_ValAcc', scalar_value=val_acc, global_step=g_step)
+        print('test step:{}/{} loss={:.5f} acc={:.3f}'.format(s, int(n_v / batch_size), val_loss, val_acc))
+    av_fold_acc = sum_acc / n_v
+    return av_fold_acc
+
 
 if __name__ == '__main__':
     if torch.cuda.is_available():
@@ -53,8 +73,8 @@ if __name__ == '__main__':
         n_v = len(valid_loader)
         print('Fold -', fold, ' num of train and test: ', n_t, n_v)
 
-        model = ConvTransformer2(num_classes=6, channels=72, num_heads=12, E=432, F=768, T=32, depth=2).cuda()
-        optimizer = torch.optim.AdamW(model.parameters(), lr=0.002, betas=(0.9, 0.98), eps=1e-9, weight_decay=decay)
+        model = ConvTransformer(num_classes=6, channels=8, num_heads=4, E=16, F=256, T=32, depth=2).cuda()
+        optimizer = torch.optim.AdamW(model.parameters(), lr=0.002, betas=(0.9, 0.999), eps=1e-8, weight_decay=decay)
         summary = SummaryWriter(log_dir='./log/' + exp_id + '/' + str(fold) + '_fold/')
 
         for epoch in range(epochs):
@@ -72,21 +92,13 @@ if __name__ == '__main__':
                     print('epoch:{}/{} step:{}/{} global_step:{} lr:{:.8f} loss={:.5f} acc={:.3f}'.format(
                         epoch, epochs, step, int(n_t / batch_size), global_step, lr, loss, acc))
                     # print(meminfo.used/1024/1024**2, 'G')  #已用显存大小
-            print('Training done')
-            sum_acc = 0
-            for step, (x, y) in enumerate(valid_loader):
-                if batch_size == 64 and step == 81:  # 跳过第81个step的原因是kfold分配的验证集在batich_size=64时，
-                    continue  # 第81个step无法填满，导致除以精度异常甚至报错
-                loss, acc = test(model=model, x=x, y=y)
-                acc = acc / batch_size
-                sum_acc += acc
-                summary.add_scalar(tag='ValLoss', scalar_value=loss, global_step=global_step)
-                summary.add_scalar(tag='ValAcc', scalar_value=acc, global_step=global_step)
-                print('test step:{}/{} loss={:.5f} acc={:.3f}'.format(step, int(n_v / batch_size), loss, acc))
-            print('本次epoch测试精度：{:.5f}'.format(sum_acc / n_v))
-            history[fold, epochs] = sum_acc / n_v
-            print('Testing done')
-        av_fold_acc = np.sum(history[fold]) / epochs
-        print('本次fold平均精度：{:.5f}'.format(av_fold_acc))
+            epoch_acc = acc_test(test_model=model, valid=valid_loader, g_step=epoch)
+            print('本次epoch测试精度：{:.5f}'.format(epoch_acc))
+        print('Fold {} train done'.format(fold))
+        fold_acc = acc_test(test_model=model, valid=valid_loader, g_step=fold)
+        print('本次fold平均精度：{:.5f}'.format(fold_acc))
+        history[fold] = fold_acc
+        print('Fold {} test done'.format(fold))
+    print(history)
     av_acc = np.sum(history) / k
     print('平均准确率：{:.5f}'.format(av_acc))
