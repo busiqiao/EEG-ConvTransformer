@@ -1,12 +1,3 @@
-# encoding: utf-8
-"""
- @author: Xin Zhang
- @contact: 2250271011@email.szu.edu.cn
- @time: 2022/11/15 21:09
- @name: 
- @desc:
-"""
-
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, SubsetRandomSampler
@@ -34,10 +25,10 @@ history = np.zeros(k)
 
 dataset = EEGImagesDataset(path='H:/EEG/EEGDATA/img_pkl_124')
 k_fold = KFold(n_splits=k, shuffle=True)
-# loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=6, shuffle=True)
 
 
 def acc_test(test_model, valid, g_step):
+    flag = 0
     sum_acc = 0
     for s, (xx, yy) in enumerate(valid):
         if batch_size == 64 and s == 81:  # 跳过第81个step的原因是kfold分配的验证集在batich_size=64时，
@@ -45,6 +36,7 @@ def acc_test(test_model, valid, g_step):
         val_loss, val_acc = test(model=test_model, x=xx, y=yy)
         val_acc = val_acc / batch_size
         sum_acc += val_acc
+        flag += 1
         if g_step == 0:
             summary.add_scalar(tag='ValLoss', scalar_value=val_loss, global_step=g_step)
             summary.add_scalar(tag='ValAcc', scalar_value=val_acc, global_step=g_step)
@@ -52,7 +44,7 @@ def acc_test(test_model, valid, g_step):
             summary.add_scalar(tag='Epoch_ValLoss', scalar_value=val_loss, global_step=g_step)
             summary.add_scalar(tag='Epoch_ValAcc', scalar_value=val_acc, global_step=g_step)
         print('test step:{}/{} loss={:.5f} acc={:.3f}'.format(s, int(n_v / batch_size), val_loss, val_acc))
-    av_fold_acc = sum_acc / n_v
+    av_fold_acc = sum_acc / flag
     return av_fold_acc
 
 
@@ -70,11 +62,18 @@ if __name__ == '__main__':
         valid_loader = DataLoader(dataset, batch_size=batch_size, sampler=valid_sampler, num_workers=1,
                                   prefetch_factor=1)
         n_t = len(train_ids)
-        n_v = len(valid_loader)
+        n_v = len(valid_ids)
         print('Fold -', fold, ' num of train and test: ', n_t, n_v)
 
         model = ConvTransformer(num_classes=6, channels=8, num_heads=4, E=16, F=256, T=32, depth=2).cuda()
-        optimizer = torch.optim.AdamW(model.parameters(), lr=0.002, betas=(0.9, 0.999), eps=1e-8, weight_decay=decay)
+
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+        print(f"Total parameters: {total_params}")
+        print(f"Trainable parameters: {trainable_params}")
+
+        optimizer = torch.optim.AdamW(model.parameters(), lr=0.002, betas=(0.9, 0.999), eps=1e-9, weight_decay=decay)
         summary = SummaryWriter(log_dir='./log/' + exp_id + '/' + str(fold) + '_fold/')
 
         for epoch in range(epochs):
@@ -84,11 +83,11 @@ if __name__ == '__main__':
                 lr = learning_rate_scheduler(epoch=epoch, lr=learning_rate, gamma=gamma)
                 loss, y_ = train(model=model, optimizer=optimizer, x=x, y=y, lr=lr)
                 global_step += 1
+                corrects = (torch.argmax(y_, dim=1).data == y.data)
+                acc = corrects.cpu().int().sum().numpy() / batch_size
+                summary.add_scalar(tag='TrainLoss', scalar_value=loss, global_step=global_step)
+                summary.add_scalar(tag='TrainAcc', scalar_value=acc, global_step=global_step)
                 if step % 50 == 0:
-                    corrects = (torch.argmax(y_, dim=1).data == y.data)
-                    acc = corrects.cpu().int().sum().numpy() / batch_size
-                    summary.add_scalar(tag='TrainLoss', scalar_value=loss, global_step=global_step)
-                    summary.add_scalar(tag='TrainAcc', scalar_value=acc, global_step=global_step)
                     print('epoch:{}/{} step:{}/{} global_step:{} lr:{:.8f} loss={:.5f} acc={:.3f}'.format(
                         epoch, epochs, step, int(n_t / batch_size), global_step, lr, loss, acc))
                     # print(meminfo.used/1024/1024**2, 'G')  #已用显存大小

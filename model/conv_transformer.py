@@ -14,10 +14,10 @@ class ConvTransformer(nn.Module):
 
         p = ((T - 8 + 2 * 0) // 4 + 1) ** 2
         self.conv1 = nn.Conv2d(in_channels=channels, out_channels=F // 2,
-                               kernel_size=(p, 3), stride=(p, 1), padding=(0, 1))
+                               kernel_size=(p, 3), stride=(1, 1), padding=(0, 1))
         self.conv2 = nn.Conv2d(in_channels=channels, out_channels=F // 2,
-                               kernel_size=(p, 5), stride=(p, 1), padding=(0, 2))
-        self.bn = nn.BatchNorm3d(num_features=1)
+                               kernel_size=(p, 5), stride=(1, 1), padding=(0, 2))
+        self.bn = nn.BatchNorm2d(num_features=F)
         self.elu = nn.ELU()
         self.fla = nn.Flatten(start_dim=1, end_dim=-1)
         self.linear = nn.Sequential(
@@ -39,7 +39,7 @@ class ConvTransformer(nn.Module):
         x1 = self.conv1(x)  # [b, F/2, 1, T]
         x2 = self.conv2(x)  # [b, F/2, 1, T]
         x = torch.cat((x1, x2), dim=1)  # [b, F, 1, T]
-        x = self.bn(x.unsqueeze(1)).squeeze()
+        x = self.bn(x)
         x = self.elu(x)
         x = self.fla(x)  # [b, F*T]
         x = self.linear(x)  # [b, classes]
