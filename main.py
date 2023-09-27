@@ -1,11 +1,12 @@
 import numpy as np
 import torch
+from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from data_load.dataset import EEGImagesDataset
 from model.conv_transformer import *
 from sklearn.model_selection import KFold
 from torch.utils.tensorboard import SummaryWriter
-from utils import train, test, learning_rate_scheduler
+from utils import train, test
 import pynvml
 
 pynvml.nvmlInit()
@@ -27,7 +28,7 @@ dataset = EEGImagesDataset(path='H:/EEG/EEGDATA/img_pkl_124')
 k_fold = KFold(n_splits=k, shuffle=True)
 
 
-def acc_test(test_model, valid, g_step):
+def acc_test(test_model, valid, g_step=0):
     flag = 0
     sum_acc = 0
     for s, (xx, yy) in enumerate(valid):
@@ -37,13 +38,10 @@ def acc_test(test_model, valid, g_step):
         val_acc = val_acc / batch_size
         sum_acc += val_acc
         flag += 1
-        if g_step == 0:
-            summary.add_scalar(tag='ValLoss', scalar_value=val_loss, global_step=g_step)
-            summary.add_scalar(tag='ValAcc', scalar_value=val_acc, global_step=g_step)
-        else:
-            summary.add_scalar(tag='Epoch_ValLoss', scalar_value=val_loss, global_step=g_step)
-            summary.add_scalar(tag='Epoch_ValAcc', scalar_value=val_acc, global_step=g_step)
+        summary.add_scalar(tag='ValLoss', scalar_value=val_loss, global_step=g_step)
+        summary.add_scalar(tag='ValAcc', scalar_value=val_acc, global_step=g_step)
         print('test step:{}/{} loss={:.5f} acc={:.3f}'.format(s, int(n_v / batch_size), val_loss, val_acc))
+
     av_fold_acc = sum_acc / flag
     return av_fold_acc
 
@@ -73,30 +71,35 @@ if __name__ == '__main__':
         print(f"Total parameters: {total_params}")
         print(f"Trainable parameters: {trainable_params}")
 
-        optimizer = torch.optim.AdamW(model.parameters(), lr=0.002, betas=(0.9, 0.999), eps=1e-9, weight_decay=decay)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8,
+                                      weight_decay=decay)
+        scheduler = StepLR(optimizer, step_size=5, gamma=gamma)
         summary = SummaryWriter(log_dir='./log/' + exp_id + '/' + str(fold) + '_fold/')
 
+        max_acc = 0
         for epoch in range(epochs):
             for step, (x, y) in enumerate(train_loader):
                 x = x.cuda()
                 y = y.cuda()
-                lr = learning_rate_scheduler(epoch=epoch, lr=learning_rate, gamma=gamma)
-                loss, y_ = train(model=model, optimizer=optimizer, x=x, y=y, lr=lr)
+                loss, y_ = train(model=model, optimizer=optimizer, x=x, y=y)
                 global_step += 1
                 corrects = (torch.argmax(y_, dim=1).data == y.data)
                 acc = corrects.cpu().int().sum().numpy() / batch_size
                 summary.add_scalar(tag='TrainLoss', scalar_value=loss, global_step=global_step)
                 summary.add_scalar(tag='TrainAcc', scalar_value=acc, global_step=global_step)
+                lr = scheduler.get_last_lr()[0]
                 if step % 50 == 0:
                     print('epoch:{}/{} step:{}/{} global_step:{} lr:{:.8f} loss={:.5f} acc={:.3f}'.format(
-                        epoch, epochs, step, int(n_t / batch_size), global_step, lr, loss, acc))
-                    # print(meminfo.used/1024/1024**2, 'G')  #已用显存大小
+                        epoch, epochs - 1, step, int(n_t / batch_size), global_step, lr, loss, acc))
+                if epoch > 12:
+                    scheduler.step()
             epoch_acc = acc_test(test_model=model, valid=valid_loader, g_step=epoch)
             print('本次epoch测试精度：{:.5f}'.format(epoch_acc))
+            if epoch_acc > max_acc:
+                max_acc = epoch_acc
         print('Fold {} train done'.format(fold))
-        fold_acc = acc_test(test_model=model, valid=valid_loader, g_step=fold)
-        print('本次fold平均精度：{:.5f}'.format(fold_acc))
-        history[fold] = fold_acc
+        print('本次fold平均精度：{:.5f}'.format(max_acc))
+        history[fold] = max_acc
         print('Fold {} test done'.format(fold))
     print(history)
     av_acc = np.sum(history) / k

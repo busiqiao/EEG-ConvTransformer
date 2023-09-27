@@ -8,9 +8,9 @@
 import torch
 
 
-def train(model, optimizer, x, y, lr=0.01):
-    for p in optimizer.param_groups:
-        p['lr'] = lr
+def train(model, optimizer, x, y):
+    # for p in optimizer.param_groups:
+    #     p['lr'] = lr
     model.train()
     optimizer.zero_grad()
     y_ = model(x)
@@ -29,9 +29,3 @@ def test(model, x, y):
     corrects = (torch.argmax(y_, dim=1).data == y.data)
     acc = corrects.cpu().int().sum().numpy()
     return loss, acc
-
-
-def learning_rate_scheduler(epoch, lr, gamma):
-    if epoch >= 14:
-        lr = (gamma ** ((epoch - 14) // 5 + 1)) * lr
-    return lr
