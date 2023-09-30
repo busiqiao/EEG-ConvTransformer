@@ -24,7 +24,7 @@ k = 10
 exp_id = 'debug'
 history = np.zeros(k)
 
-dataset = EEGImagesDataset(path='H:/EEG/EEGDATA/img_pkl_124')
+dataset = EEGImagesDataset(path='/home/zdd/Desktop/Projects/data_eeg_visual/img_pkl_124')
 k_fold = KFold(n_splits=k, shuffle=True)
 
 
@@ -78,6 +78,8 @@ if __name__ == '__main__':
 
         max_acc = 0
         for epoch in range(epochs):
+            if epoch > 10:
+                scheduler.step()
             for step, (x, y) in enumerate(train_loader):
                 x = x.cuda()
                 y = y.cuda()
@@ -91,8 +93,6 @@ if __name__ == '__main__':
                 if step % 50 == 0:
                     print('epoch:{}/{} step:{}/{} global_step:{} lr:{:.8f} loss={:.5f} acc={:.3f}'.format(
                         epoch, epochs - 1, step, int(n_t / batch_size), global_step, lr, loss, acc))
-                if epoch > 12:
-                    scheduler.step()
             epoch_acc = acc_test(test_model=model, valid=valid_loader, g_step=epoch)
             print('本次epoch测试精度：{:.5f}'.format(epoch_acc))
             if epoch_acc > max_acc:

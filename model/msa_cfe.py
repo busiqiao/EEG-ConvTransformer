@@ -40,7 +40,7 @@ class MHA(nn.Module):
         self.h = num_heads
         self.d = channels // num_heads
         # scale factor
-        self.scale = self.d ** -0.5
+        self.scale = (self.d * 32) ** -0.5
 
         self.conv_qkv = nn.Conv2d(in_channels=channels, out_channels=3*channels, kernel_size=(1, 1), stride=(1, 1))
         self.softmax = nn.Softmax(dim=-1)
