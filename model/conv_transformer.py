@@ -29,7 +29,7 @@ class ConvTransformer(nn.Module):
             nn.ReLU(),
             nn.Linear(in_features=100, out_features=num_classes)
         )
-        self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, x):
         # [b, 1,  M, M, T]

@@ -1,5 +1,4 @@
 import numpy as np
-import torch
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from data_load.dataset import EEGImagesDataset
@@ -8,6 +7,7 @@ from sklearn.model_selection import KFold
 from torch.utils.tensorboard import SummaryWriter
 from utils import train, test
 import pynvml
+from torchsummary import summary
 
 pynvml.nvmlInit()
 handle = pynvml.nvmlDeviceGetHandleByIndex(0)  # 0表示显卡标号
@@ -24,7 +24,7 @@ k = 10
 exp_id = 'debug'
 history = np.zeros(k)
 
-dataset = EEGImagesDataset(path='/home/zdd/Desktop/Projects/data_eeg_visual/img_pkl_124')
+dataset = EEGImagesDataset(path='H:/EEG/EEGDATA/img_pkl_124')
 k_fold = KFold(n_splits=k, shuffle=True)
 
 
@@ -70,6 +70,8 @@ if __name__ == '__main__':
 
         print(f"Total parameters: {total_params}")
         print(f"Trainable parameters: {trainable_params}")
+
+        # summary(model, input_size=(1, 32, 32, 32))
 
         optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8,
                                       weight_decay=decay)
