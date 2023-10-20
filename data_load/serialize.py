@@ -1,4 +1,5 @@
 import glob
+import os
 import platform
 from tqdm import tqdm
 from data_load.read_mat import read_eeg_mat, read_locs_xlsx
@@ -16,6 +17,7 @@ def thread_read_write(x, y, pkl_filename):
     """Writes and dumps the processed pkl file for each stimulus(or called subject).
     [time, channels=124], y
     """
+    os.makedirs(os.path.dirname(pkl_filename), exist_ok=True)
     with open(pkl_filename + '.pkl', 'wb') as file:
         pickle.dump(x, file)
         pickle.dump(y, file)
