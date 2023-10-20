@@ -1,11 +1,3 @@
-# encoding: utf-8
-"""
- @author: Xin Zhang
- @contact: 2250271011@email.szu.edu.cn
- @time: 2022/11/15 19:13
- @name: 
- @desc:
-"""
 import glob
 import platform
 from tqdm import tqdm
@@ -33,6 +25,9 @@ def go_through(filenames, pkl_path):
     for f in tqdm(filenames, desc=' Total', position=0, leave=True, colour='YELLOW', ncols=80):
         eeg, y = read_eeg_mat(f)  # [n_samples=5184, t_length=32, channels=124]
 
+        name = f.split('/')[-1].replace('.mat', '')
+        sub_pkl_path = pkl_path + name
+
         # -----------------
         samples, time, channels = np.shape(eeg)
         eeg = einops.rearrange(eeg, 'n t c -> (n t) c', n=samples, t=time, c=channels)
@@ -47,10 +42,9 @@ def go_through(filenames, pkl_path):
         imgs = einops.rearrange(imgs, '(n t) w h -> n t w h', n=samples, t=time)
         # -------------------
 
-        name = f.split('/')[-1].replace('.mat', '')
         Parallel(n_jobs=parallel_jobs)(
-            delayed(thread_read_write)(imgs[i], y[i], pkl_path + name+'_' + str(i) + '_'+str(y[i]))
-            for i in tqdm(range(len(y)), desc=' write '+name, position=1, leave=False, colour='WHITE', ncols=80))
+            delayed(thread_read_write)(imgs[i], y[i], sub_pkl_path + name + '_' + str(i) + '_' + str(y[i]))
+            for i in tqdm(range(len(y)), desc=' write ' + name, position=1, leave=False, colour='WHITE', ncols=80))
 
 
 def file_scanf(path, endswith, sub_ratio=1):
@@ -66,6 +60,5 @@ if __name__ == "__main__":
     path = 'H:/EEG/EEGDATA'
     filenames = file_scanf(path, endswith='.mat')
     locs = read_locs_xlsx('H:/EEG/EEG-ConvTransformer/data_load/electrodes_locations/GSN_HydroCel_128.xlsx')
-    # locs = read_locs_mat('E:/Datasets/Stanford_digital_repository/electrodes_locations/Neuroscan_locs_orig.mat')
 
-    go_through(filenames, pkl_path=path+'/img_pkl_124/')
+    go_through(filenames, pkl_path=path + '/img_pkl_124/')

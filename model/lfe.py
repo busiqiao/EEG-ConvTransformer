@@ -1,12 +1,3 @@
-# encoding: utf-8
-"""
- @author: Xin Zhang
- @contact: 2250271011@email.szu.edu.cn
- @time: 2022/11/8 15:39
- @name: 
- @desc: Implementation of Fig. 2 of Session 3.2 in citation
-"""
-
 import torch.nn as nn
 import torch
 
