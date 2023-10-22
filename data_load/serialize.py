@@ -28,7 +28,7 @@ def go_through(filenames, pkl_path):
         eeg, y = read_eeg_mat(f)  # [n_samples=5184, t_length=32, channels=124]
 
         name = f.split('/')[-1].replace('.mat', '')
-        sub_pkl_path = pkl_path + name
+        sub_pkl_path = pkl_path + name + '/'
 
         # -----------------
         samples, time, channels = np.shape(eeg)

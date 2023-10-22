@@ -6,6 +6,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from tqdm import tqdm
 
+import model.modal_parament
 from data_load.dataset import EEGImagesDataset
 from model.conv_transformer import *
 from sklearn.model_selection import KFold
@@ -13,34 +14,37 @@ from torch.utils.tensorboard import SummaryWriter
 from utils import train, test
 from torchsummary import summary
 
-torch.manual_seed(0)
-np.random.seed(0)
+modal_variant = ['CT-Slim', 'CT-Fit', 'CT-Wide']
 
-num_class = 6
+# 根据需要选择训练modal、类别、日志路径
+num_class = 72
+variant = modal_variant.index('CT-Slim')
+exp_id = 'debug'
+
+# 初始化固定变量
+selected_modal = model.modal_parament.select_modal(num_class=num_class, variant=variant)
 batch_size = 64
 learning_rate = 0.0001
-decay = 0.135
-gamma = 0.5
-epochs = 35
 k = 10
-seed_value = 3407
-exp_id = 'debug'
 history = np.zeros((10, 10))
-
 k_fold = KFold(n_splits=k, shuffle=True)
+
+# 固定随机种子
+seed_value = selected_modal.seed_value
 np.random.seed(seed_value)
 random.seed(seed_value)
 os.environ['PYTHONHASHSEED'] = str(seed_value)  # 为了禁止hash随机化，使得实验可复现。
 torch.manual_seed(seed_value)  # 为CPU设置随机种子
 torch.cuda.manual_seed(seed_value)  # 为当前GPU设置随机种子
 
-
 if __name__ == '__main__':
     dataPath = 'H:\\EEG\\EEGDATA\\img_pkl_124'
 
     print(
         '\r参数设置: num_class={}，epochs={}，batch_size={}，k_fold={}，manual_seed={}, learning_rate={}, decay={}, gamma={}, '
-        'exp_id={}'.format(num_class, epochs, batch_size, k, seed_value, learning_rate, decay, gamma, exp_id))
+        'exp_id={}'.format(selected_modal.num_class, selected_modal.epochs, batch_size, k,
+                           selected_modal.seed_value, learning_rate, selected_modal.decay, selected_modal.gamma,
+                           exp_id))
 
     global_step = 0
     for i in range(0, k):
@@ -56,10 +60,12 @@ if __name__ == '__main__':
             n_t = len(train_loader) * batch_size
             n_v = len(test_loader) * batch_size
 
-            model = ConvTransformer(num_classes=num_class, channels=8, num_heads=4, E=16, F=256, T=32, depth=2).cuda()
+            model = ConvTransformer(num_classes=selected_modal.num_class, channels=selected_modal.channels,
+                                    num_heads=selected_modal.num_heads, E=selected_modal.E, F=selected_modal.F,
+                                    T=selected_modal.T, depth=selected_modal.depth).cuda()
             optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8,
-                                          weight_decay=decay)
-            scheduler = StepLR(optimizer, step_size=5, gamma=gamma)
+                                          weight_decay=selected_modal.decay)
+            scheduler = StepLR(optimizer, step_size=5, gamma=selected_modal.gamma)
 
             if fold == 0:
                 print('\r第{}位受试者:  train_num={}, test_num={}'.format(int(i + 1), n_t, n_v))
@@ -68,7 +74,7 @@ if __name__ == '__main__':
             summary = SummaryWriter(log_dir='./log/' + exp_id + '/' + str(fold) + '_fold/')
 
             max_acc = 0
-            for epoch in range(epochs):
+            for epoch in range(selected_modal.epochs):
                 losses = []
                 accuracy = []
                 train_loop = tqdm(train_loader, total=len(train_loader))
@@ -86,7 +92,7 @@ if __name__ == '__main__':
                     summary.add_scalar(tag='TrainAcc', scalar_value=acc, global_step=global_step)
                     lr = scheduler.get_last_lr()[0]
 
-                    train_loop.set_description(f'Epoch [{epoch + 1}/{epochs}] - Train')
+                    train_loop.set_description(f'Epoch [{epoch + 1}/{selected_modal.epochs}] - Train')
                     train_loop.set_postfix(loss=loss.item(), acc=acc, lr=lr)
 
                 test_loop = tqdm(test_loader, total=len(test_loader))
@@ -117,4 +123,3 @@ if __name__ == '__main__':
         print('\r*************************************************************')
     print(history)
     print('\r训练完成，{}类平均准确率：{}'.format(num_class, np.mean(history)))
-
