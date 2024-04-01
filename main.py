@@ -12,14 +12,14 @@ from model.conv_transformer import *
 from sklearn.model_selection import KFold
 from torch.utils.tensorboard import SummaryWriter
 from utils import train, test
-from torchsummary import summary
+from torchinfo import summary
 
 modal_variant = ['CT-Slim', 'CT-Fit', 'CT-Wide']
 
-# 根据需要选择训练modal、类别、日志路径
-num_class = 72
+# 根据需要选择训练modal、类别、日志路径，只需要修改这里！！！
+num_class = 6
 variant = modal_variant.index('CT-Slim')
-exp_id = 'debug'
+exp_id = '6class_CT-Slim'
 
 # 初始化固定变量
 selected_modal = model.modal_parament.select_modal(num_class=num_class, variant=variant)
@@ -73,14 +73,14 @@ if __name__ == '__main__':
                 summary(model, input_size=(1, 32, 32, 32))
             summary = SummaryWriter(log_dir='./log/' + exp_id + '/' + str(fold) + '_fold/')
 
-            max_acc = 0
+            losses = []
+            accuracy = []
             for epoch in range(selected_modal.epochs):
-                losses = []
-                accuracy = []
-                train_loop = tqdm(train_loader, total=len(train_loader))
-
+                # 每10个epoch调整一次学习率
                 if epoch > 10:
                     scheduler.step()
+
+                train_loop = tqdm(train_loader, total=len(train_loader))
                 for (x, y) in train_loop:
                     x = x.cuda()
                     y = y.cuda()
@@ -95,31 +95,27 @@ if __name__ == '__main__':
                     train_loop.set_description(f'Epoch [{epoch + 1}/{selected_modal.epochs}] - Train')
                     train_loop.set_postfix(loss=loss.item(), acc=acc, lr=lr)
 
-                test_loop = tqdm(test_loader, total=len(test_loader))
-                sum_val_acc, flag, sum_val_loss = 0, 0, 0
-                for (xx, yy) in test_loop:
-                    val_loss, val_acc = test(model=model, x=xx, y=yy)
-                    val_acc = val_acc / batch_size
-                    sum_val_acc += val_acc
-                    sum_val_loss += val_loss
-                    losses.append(val_loss)
-                    accuracy.append(val_acc)
-                    flag += 1
+            test_loop = tqdm(test_loader, total=len(test_loader))
+            for (xx, yy) in test_loop:
+                val_loss, val_acc = test(model=model, x=xx, y=yy)
+                val_acc = val_acc / batch_size
+                losses.append(val_loss)
+                accuracy.append(val_acc)
 
-                    # 获取当前学习率
-                    current_lr = optimizer.param_groups[0]['lr']
+                # 获取当前学习率
+                current_lr = optimizer.param_groups[0]['lr']
 
-                    test_loop.set_description(f'               Test ')
-                    test_loop.set_postfix(loss=val_loss.item(), acc=val_acc, lr=current_lr)
+                test_loop.set_description(f'                 Test ')
+                test_loop.set_postfix(loss=val_loss.item(), acc=val_acc, lr=current_lr)
 
-                epoch_acc = sum_val_acc / flag
-                print('\repoch平均准确率：{}'.format(epoch_acc))
-                if epoch_acc > max_acc:
-                    max_acc = history[i][fold] = epoch_acc
-            print('\r受试者{}，第{}折测试准确率：{}'.format(i + 1, fold + 1, history[i][fold]))
-            print('\r---------------------------------------------------------')
-        print(history[i])
-        print('\r受试者{}训练完成，平均准确率：{}'.format(i + 1, np.mean(history[i], axis=0)))
-        print('\r*************************************************************')
+                avg_test_acc = np.sum(accuracy) / len(accuracy)
+                history[i][fold] = avg_test_acc
+                print('\r受试者{}，第{}折测试准确率：{}'.format(i + 1, fold + 1, history[i][fold]))
+                print('\r---------------------------------------------------------')
+
+            print(history[i])
+            print('\r受试者{}训练完成，平均准确率：{}'.format(i + 1, np.mean(history[i], axis=0)))
+            print('\r*************************************************************')
+
     print(history)
     print('\r训练完成，{}类平均准确率：{}'.format(num_class, np.mean(history)))
