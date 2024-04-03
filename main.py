@@ -1,17 +1,15 @@
 import os
+import pickle
 import random
-
 import numpy as np
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from tqdm import tqdm
-
 import model.modal_parament
 from data_load.dataset import EEGImagesDataset
 from model.conv_transformer import *
-from sklearn.model_selection import KFold
 from torch.utils.tensorboard import SummaryWriter
-from utils import train, test
+from utils.util import train, test
 from torchinfo import summary
 
 modal_variant = ['CT-Slim', 'CT-Fit', 'CT-Wide']
@@ -27,7 +25,6 @@ batch_size = 64
 learning_rate = 0.0001
 k = 10
 history = np.zeros((10, 10))
-k_fold = KFold(n_splits=k, shuffle=True)
 
 # 固定随机种子
 seed_value = selected_modal.seed_value
@@ -39,6 +36,8 @@ torch.cuda.manual_seed(seed_value)  # 为当前GPU设置随机种子
 
 if __name__ == '__main__':
     dataPath = 'H:\\EEG\\EEGDATA\\img_pkl_124'
+    with open('utils/kfold_indices.pkl', 'rb') as f:
+        all_indices = pickle.load(f)
 
     print(
         '\r参数设置: num_class={}，epochs={}，batch_size={}，k_fold={}，manual_seed={}, learning_rate={}, decay={}, gamma={}, '
@@ -50,7 +49,7 @@ if __name__ == '__main__':
     for i in range(0, k):
         dataset = EEGImagesDataset(file_path=dataPath + '\\' + 'S' + str(i + 1) + '\\', num_class=num_class)
 
-        for fold, (train_ids, valid_ids) in enumerate(k_fold.split(dataset)):
+        for fold, (train_ids, valid_ids) in enumerate(all_indices[i]):
             train_sampler = SubsetRandomSampler(train_ids)
             valid_sampler = SubsetRandomSampler(valid_ids)
             train_loader = DataLoader(dataset, batch_size=batch_size, sampler=train_sampler, num_workers=3,
@@ -70,7 +69,7 @@ if __name__ == '__main__':
             if fold == 0:
                 print('\r第{}位受试者:  train_num={}, test_num={}'.format(int(i + 1), n_t, n_v))
             if i == 0 and fold == 0:
-                summary(model, input_size=(1, 32, 32, 32))
+                summary(model, input_size=(64, 1, 32, 32, 32))
             summary = SummaryWriter(log_dir='./log/' + exp_id + '/' + str(fold) + '_fold/')
 
             losses = []
@@ -105,17 +104,17 @@ if __name__ == '__main__':
                 # 获取当前学习率
                 current_lr = optimizer.param_groups[0]['lr']
 
-                test_loop.set_description(f'                 Test ')
+                test_loop.set_description(f'                Test ')
                 test_loop.set_postfix(loss=val_loss.item(), acc=val_acc, lr=current_lr)
 
-                avg_test_acc = np.sum(accuracy) / len(accuracy)
-                history[i][fold] = avg_test_acc
-                print('\r受试者{}，第{}折测试准确率：{}'.format(i + 1, fold + 1, history[i][fold]))
-                print('\r---------------------------------------------------------')
+            avg_test_acc = np.sum(accuracy) / len(accuracy)
+            history[i][fold] = avg_test_acc
+            print('\r受试者{}，第{}折测试准确率：{}'.format(i + 1, fold + 1, history[i][fold]))
+            print('\r---------------------------------------------------------')
 
-            print(history[i])
-            print('\r受试者{}训练完成，平均准确率：{}'.format(i + 1, np.mean(history[i], axis=0)))
-            print('\r*************************************************************')
+        print(history[i])
+        print('\r受试者{}训练完成，平均准确率：{}'.format(i + 1, np.mean(history[i], axis=0)))
+        print('\r*************************************************************')
 
     print(history)
     print('\r训练完成，{}类平均准确率：{}'.format(num_class, np.mean(history)))
