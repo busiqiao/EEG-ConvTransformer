@@ -36,7 +36,7 @@ torch.cuda.manual_seed(seed_value)  # 为当前GPU设置随机种子
 
 if __name__ == '__main__':
     dataPath = 'H:\\EEG\\EEGDATA\\img_pkl_124'
-    with open('utils/kfold_indices.pkl', 'rb') as f:
+    with open(f'utils/kfold_indices_{num_class}.pkl', 'rb') as f:
         all_indices = pickle.load(f)
 
     print(
@@ -46,7 +46,7 @@ if __name__ == '__main__':
                            exp_id))
 
     global_step = 0
-    for i in range(0, k):
+    for i in range(k):
         dataset = EEGImagesDataset(file_path=dataPath + '\\' + 'S' + str(i + 1) + '\\', num_class=num_class)
 
         for fold, (train_ids, valid_ids) in enumerate(all_indices[i]):
