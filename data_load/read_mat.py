@@ -57,25 +57,11 @@ def read_eeg_mat(filepath='E:/Datasets/Stanford_digital_repository/S1.mat'):
     # X_3D = X_3D[::2, :, :].transpose(2, 1, 0)  # [n_samples=5184, t_length=32, channels=62]
     X_3D = np.transpose(X_3D, (2, 1, 0))  # [n_samples=5184, t_length=32, channels=124]
 
-    labels = np.asarray(mat['categoryLabels']).squeeze()  # [5184]
-    assert len(labels) == len(X_3D)
-    return X_3D, labels
+    labels1 = np.asarray(mat['categoryLabels']).squeeze() - 1  # [5184]
+    labels2 = np.asarray(mat['exemplarLabels']).squeeze() - 1
+    assert len(labels1) == len(X_3D)
+    return X_3D, labels1, labels2
 
 
 if __name__ == '__main__':
     read_locs_xlsx()
-
-    # return a dict
-    # mat = scipy.io.loadmat('G:/Datasets/Stanford_digital_repository/S1.mat')
-    # print(mat.keys(), '\n')
-    # print(mat['__header__'], '\n')
-    # print(mat['__version__'], '\n')
-    # print(mat['__globals__'], '\n')
-    # print('sub: ', mat['sub'])
-    # print('Fs: ', mat['Fs'])
-    # print('N: ', mat['N'], '\n')
-    # print('T: ', mat['T'], '\n')
-    # print('exemplarLabels: ', mat['exemplarLabels'], '\n')
-    # print('categoryLabels: ', mat['categoryLabels'], '\n')
-    # print('X_2D: ', np.shape(mat['X_2D']), '\n')
-    # print('X_3D: ', np.shape(mat['X_3D']), '\n')  # [124 32 5188]

@@ -13,7 +13,7 @@ def create_kfold_indices():
     all_indices = []
     for i in range(0, 10):
         # 数据集
-        dataset = EEGImagesDataset(file_path=dataPath + '\\' + 'S' + str(i + 1) + '\\', num_class=num_class)
+        dataset = EEGImagesDataset(file_path1=dataPath + '\\' + 'S' + str(i + 1) + '\\', num_class=num_class)
 
         indices = [(train_index, test_index) for train_index, test_index in k_fold.split(dataset)]
 

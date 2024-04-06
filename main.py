@@ -15,7 +15,7 @@ from torchinfo import summary
 modal_variant = ['CT-Slim', 'CT-Fit', 'CT-Wide']
 
 # 根据需要选择训练modal、类别、日志路径，只需要修改这里！！！
-num_class = 6
+num_class = 72
 variant = modal_variant.index('CT-Slim')
 exp_id = '6class_CT-Slim'
 
@@ -35,7 +35,7 @@ torch.manual_seed(seed_value)  # 为CPU设置随机种子
 torch.cuda.manual_seed(seed_value)  # 为当前GPU设置随机种子
 
 if __name__ == '__main__':
-    dataPath = 'H:\\EEG\\EEGDATA\\img_pkl_124'
+    dataPath = 'H:\\EEG\\EEGDATA\\test\\'
     with open(f'utils/kfold_indices_{num_class}.pkl', 'rb') as f:
         all_indices = pickle.load(f)
 
@@ -47,7 +47,7 @@ if __name__ == '__main__':
 
     global_step = 0
     for i in range(k):
-        dataset = EEGImagesDataset(file_path=dataPath + '\\' + 'S' + str(i + 1) + '\\', num_class=num_class)
+        dataset = EEGImagesDataset(file_path=dataPath, s=i, num_class=num_class)
 
         for fold, (train_ids, valid_ids) in enumerate(all_indices[i]):
             train_sampler = SubsetRandomSampler(train_ids)

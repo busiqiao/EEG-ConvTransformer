@@ -1,30 +1,33 @@
 import pickle
 
 import numpy as np
-import scipy.io
 import torch
 from torch.utils.data.dataset import Dataset
-
-from data_load.serialize import file_scanf
 
 
 class EEGImagesDataset(Dataset):
     """EEGLearn Images Dataset from EEG."""
 
-    def __init__(self, file_path, num_class=6):
-        self.filepaths = file_scanf(file_path, endswith='.pkl')
+    def __init__(self, file_path, num_class=6, s=1):
+        self.file_path = file_path
+        self.num_class = num_class
+
+        with open(self.file_path + f'S{s+1}.pkl', 'rb') as file:
+            data, y = pickle.load(file)
+            data = np.array(data)  # Convert list of numpy arrays to a single numpy array
+            data = torch.tensor(data, dtype=torch.float32)
+            self.data = data.unsqueeze(1)
+            if self.num_class == 6:
+                labels = [item[0] for item in y]
+                self.labels = torch.tensor(labels).long()
+            elif self.num_class == 72:
+                labels = [item[1] for item in y]
+                self.labels = torch.tensor(labels).long()
+            else:
+                raise ValueError('num_class must be 6 or 72')
 
     def __len__(self):
-        return len(self.filepaths)
+        return len(self.data)
 
     def __getitem__(self, idx):
-        filepath = self.filepaths[idx]
-
-        with open(filepath, 'rb') as f:
-            x = pickle.load(f)  # [t, w, h]
-            y = int(pickle.load(f))
-
-            y = y - 1
-            assert 0 <= y <= 5
-
-        return torch.tensor(x, dtype=torch.float).permute(1, 2, 0).unsqueeze(0), torch.tensor(y, dtype=torch.long)
+        return self.data[idx], self.labels[idx]
