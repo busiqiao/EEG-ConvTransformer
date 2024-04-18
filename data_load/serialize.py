@@ -11,6 +11,7 @@ import einops
 
 def save_data(args):
     filename, f, pkl_path, locs = args  # Add locs to the arguments
+    print(filename + ' start')
     eeg, y1, y2 = read_eeg_mat(f)  # [n_samples=5184, t_length=32, channels=124]
 
     # -----------------
@@ -55,8 +56,8 @@ def file_scanf(path, endswith, sub_ratio=1):
 
 
 if __name__ == "__main__":
-    data_path = 'H:/EEG/EEGDATA/EEG72/'
+    data_path = '/data/EEG72'
     mat_file = file_scanf(data_path, endswith='.mat')
-    loc = read_locs_xlsx('H:/EEG/EEG-ConvTransformer/data_load/electrodes_locations/GSN_HydroCel_128.xlsx')
+    loc = read_locs_xlsx('/home/zdd/Desktop/Projects/EEG-ConvTransformer/data_load/electrodes_locations/GSN_HydroCel_128.xlsx')
 
-    go_through(mat_file, pkl_path='H:/EEG/EEGDATA/test/', locs=loc)
+    go_through(mat_file, pkl_path='/data/EEG72-IMG/', locs=loc)

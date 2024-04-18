@@ -1,7 +1,7 @@
 import os
-import pickle
 import random
 import numpy as np
+from sklearn.model_selection import KFold
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from tqdm import tqdm
@@ -9,35 +9,40 @@ import model.modal_parament
 from data_load.dataset import EEGImagesDataset
 from model.conv_transformer import *
 from torch.utils.tensorboard import SummaryWriter
-from utils.util import train, test
+from utils.util import train, test, select_class, save_result
 from torchinfo import summary
 
 modal_variant = ['CT-Slim', 'CT-Fit', 'CT-Wide']
+classes_name = ['6-Category', '72-Exemplar', 'HF-IO', 'HF-Exemplar', 'IO-Exemplar']
 
 # 根据需要选择训练modal、类别、日志路径，只需要修改这里！！！
-num_class = 72
-variant = modal_variant.index('CT-Slim')
-exp_id = '6class_CT-Slim'
+classes = '6-Category'
+models = 'CT-Slim'
+exp_id = 'test'
 
 # 初始化固定变量
+variant = modal_variant.index(models)
+num_class = select_class(classes=classes)
 selected_modal = model.modal_parament.select_modal(num_class=num_class, variant=variant)
 batch_size = 64
 learning_rate = 0.0001
 k = 10
 history = np.zeros((10, 10))
+save_path = f'./outputs/{classes}/{models}/'
+if os.path.exists(save_path) is False:
+    os.makedirs(save_path)
 
 # 固定随机种子
-seed_value = selected_modal.seed_value
+seed_value = 42
 np.random.seed(seed_value)
 random.seed(seed_value)
 os.environ['PYTHONHASHSEED'] = str(seed_value)  # 为了禁止hash随机化，使得实验可复现。
 torch.manual_seed(seed_value)  # 为CPU设置随机种子
 torch.cuda.manual_seed(seed_value)  # 为当前GPU设置随机种子
+kf = KFold(n_splits=k, shuffle=True, random_state=seed_value)
 
 if __name__ == '__main__':
-    dataPath = 'H:\\EEG\\EEGDATA\\test\\'
-    with open(f'utils/kfold_indices_{num_class}.pkl', 'rb') as f:
-        all_indices = pickle.load(f)
+    dataPath = '/data/EEG72-IMG/'
 
     print(
         '\r参数设置: num_class={}，epochs={}，batch_size={}，k_fold={}，manual_seed={}, learning_rate={}, decay={}, gamma={}, '
@@ -49,7 +54,7 @@ if __name__ == '__main__':
     for i in range(k):
         dataset = EEGImagesDataset(file_path=dataPath, s=i, num_class=num_class)
 
-        for fold, (train_ids, valid_ids) in enumerate(all_indices[i]):
+        for fold, (train_ids, valid_ids) in enumerate(kf.split(dataset)):
             train_sampler = SubsetRandomSampler(train_ids)
             valid_sampler = SubsetRandomSampler(valid_ids)
             train_loader = DataLoader(dataset, batch_size=batch_size, sampler=train_sampler, num_workers=3,
@@ -72,8 +77,6 @@ if __name__ == '__main__':
                 summary(model, input_size=(64, 1, 32, 32, 32))
             summary = SummaryWriter(log_dir='./log/' + exp_id + '/' + str(fold) + '_fold/')
 
-            losses = []
-            accuracy = []
             for epoch in range(selected_modal.epochs):
                 # 每10个epoch调整一次学习率
                 if epoch > 10:
@@ -94,6 +97,8 @@ if __name__ == '__main__':
                     train_loop.set_description(f'Epoch [{epoch + 1}/{selected_modal.epochs}] - Train')
                     train_loop.set_postfix(loss=loss.item(), acc=acc, lr=lr)
 
+            losses = []
+            accuracy = []
             test_loop = tqdm(test_loader, total=len(test_loader))
             for (xx, yy) in test_loop:
                 val_loss, val_acc = test(model=model, x=xx, y=yy)
@@ -118,3 +123,6 @@ if __name__ == '__main__':
 
     print(history)
     print('\r训练完成，{}类平均准确率：{}'.format(num_class, np.mean(history)))
+
+    save_result(history=history, save_path=save_path + 'results', classes=classes, dropout=0.5, batch_size=batch_size,
+                epochs=selected_modal.epochs)
