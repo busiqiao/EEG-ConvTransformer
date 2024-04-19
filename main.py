@@ -16,7 +16,7 @@ modal_variant = ['CT-Slim', 'CT-Fit', 'CT-Wide']
 classes_name = ['6-Category', '72-Exemplar', 'HF-IO', 'HF-Exemplar', 'IO-Exemplar']
 
 # 根据需要选择训练modal、类别、日志路径，只需要修改这里！！！
-classes = '6-Category'
+classes = '72-Exemplar'
 models = 'CT-Slim'
 exp_id = 'test'
 
@@ -50,7 +50,6 @@ if __name__ == '__main__':
                            selected_modal.seed_value, learning_rate, selected_modal.decay, selected_modal.gamma,
                            exp_id))
 
-    global_step = 0
     for i in range(k):
         dataset = EEGImagesDataset(file_path=dataPath, s=i, num_class=num_class)
 
@@ -67,18 +66,18 @@ if __name__ == '__main__':
             model = ConvTransformer(num_classes=selected_modal.num_class, channels=selected_modal.channels,
                                     num_heads=selected_modal.num_heads, E=selected_modal.E, F=selected_modal.F,
                                     T=selected_modal.T, depth=selected_modal.depth).cuda()
-            optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8,
-                                          weight_decay=selected_modal.decay)
+            optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=selected_modal.decay)
             scheduler = StepLR(optimizer, step_size=5, gamma=selected_modal.gamma)
 
             if fold == 0:
                 print('\r第{}位受试者:  train_num={}, test_num={}'.format(int(i + 1), n_t, n_v))
             if i == 0 and fold == 0:
                 summary(model, input_size=(64, 1, 32, 32, 32))
-            summary = SummaryWriter(log_dir='./log/' + exp_id + '/' + str(fold) + '_fold/')
+            summary = SummaryWriter(log_dir=f'./log/{exp_id}/{classes}/{models}/{str(fold)}_fold/')
 
+            global_step = 0
             for epoch in range(selected_modal.epochs):
-                # 每10个epoch调整一次学习率
+                # 15个epoch后，每5个epoch调整一次学习率
                 if epoch > 10:
                     scheduler.step()
 
@@ -96,6 +95,16 @@ if __name__ == '__main__':
 
                     train_loop.set_description(f'Epoch [{epoch + 1}/{selected_modal.epochs}] - Train')
                     train_loop.set_postfix(loss=loss.item(), acc=acc, lr=lr)
+
+                val_loss = None
+                val_acc = None
+                for (xx, yy) in test_loader:
+                    val_loss, acc = test(model=model, x=xx, y=yy)
+                    val_acc = acc / batch_size
+                avg_val_loss = val_loss.item()
+                avg_val_acc = np.mean(val_acc)
+                summary.add_scalar(tag='TestLoss', scalar_value=avg_val_loss, global_step=global_step)
+                summary.add_scalar(tag='TestAcc', scalar_value=avg_val_acc, global_step=global_step)
 
             losses = []
             accuracy = []

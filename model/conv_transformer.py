@@ -20,16 +20,16 @@ class ConvTransformer(nn.Module):
         self.bn = nn.BatchNorm2d(num_features=F)
         self.elu = nn.ELU()
         self.fla = nn.Flatten(start_dim=1, end_dim=-1)
-        self.linear = nn.Sequential(
+        self.classifier = nn.Sequential(
             nn.Linear(in_features=F * T, out_features=500),
             nn.Dropout(0.5),
             nn.ReLU(),
             nn.Linear(in_features=500, out_features=100),
             nn.Dropout(0.5),
             nn.ReLU(),
-            nn.Linear(in_features=100, out_features=num_classes)
+            nn.Linear(in_features=100, out_features=num_classes),
+            nn.Softmax(dim=-1)
         )
-        self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, x):
         # [b, 1,  M, M, T]
@@ -42,6 +42,5 @@ class ConvTransformer(nn.Module):
         x = self.bn(x)
         x = self.elu(x)
         x = self.fla(x)  # [b, F*T]
-        x = self.linear(x)  # [b, classes]
-        x = self.softmax(x)
+        x = self.classifier(x)  # [b, classes]
         return x
